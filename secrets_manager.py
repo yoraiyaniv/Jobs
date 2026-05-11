@@ -3,7 +3,7 @@ import os
 load_dotenv()
 
 
-def gemini_api_key():
+def get_gemini_api_key():
     secret=os.getenv("GEMINI_API_KEY")
     if secret:
         return secret
