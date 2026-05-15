@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rate Jobs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-neutral-950 text-neutral-100">
+    <nav class="bg-neutral-900 border-b border-neutral-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center gap-8">
+                    <a href="/" class="text-2xl font-bold">Job Rater</a>
+                    <a href="/" class="text-neutral-400 hover:text-neutral-200">← Back</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Action Button -->
+        <div class="mb-6">
+            <button onclick="reanalyzeJobs()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition">
+                🔄 Re-analyze Jobs
+            </button>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-4 mb-8">
+            <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+                <p class="text-neutral-400 text-sm">Unrated Jobs</p>
+                <p class="text-3xl font-bold mt-2" id="totalUnrated">0</p>
+            </div>
+            <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+                <p class="text-neutral-400 text-sm">Liked</p>
+                <p class="text-3xl font-bold mt-2 text-green-500" id="totalLiked">0</p>
+            </div>
+            <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+                <p class="text-neutral-400 text-sm">Disliked</p>
+                <p class="text-3xl font-bold mt-2 text-red-500" id="totalDisliked">0</p>
+            </div>
+        </div>
+
+        <!-- Jobs List -->
+        <div id="jobsList" class="space-y-4">
+            <div class="text-center text-neutral-400 py-8">Loading...</div>
+        </div>
+
+        <!-- No Jobs -->
+        <div id="noJobs" class="hidden text-center py-16">
+            <p class="text-2xl font-semibold mb-2">🎉 All caught up!</p>
+            <p class="text-neutral-400">You've rated all available jobs</p>
+            <a href="/" class="text-blue-500 hover:text-blue-400 mt-4 inline-block">← Back to Dashboard</a>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="hidden fixed bottom-4 right-4 bg-neutral-800 border border-neutral-700 text-white px-6 py-3 rounded-lg shadow-lg z-40"></div>
+
+    <script>
+        const userId = new URLSearchParams(window.location.search).get('user_id');
+        let totalLiked = 0;
+        let totalDisliked = 0;
+
+        if (!userId) {
+            document.getElementById('jobsList').innerHTML = '<p class="text-red-500">No user ID provided</p>';
+        } else {
+            loadJobs();
+        }
+
+        async function loadJobs() {
+            try {
+                const response = await fetch(`/api/users/${userId}/unrated-jobs?limit=100`);
+                const data = await response.json();
+
+                document.getElementById('totalUnrated').textContent = data.total_unrated;
+
+                if (data.total_unrated === 0) {
+                    document.getElementById('jobsList').classList.add('hidden');
+                    document.getElementById('noJobs').classList.remove('hidden');
+                    return;
+                }
+
+                renderJobs(data.jobs);
+            } catch (error) {
+                console.error('Error loading jobs:', error);
+                showToast('Failed to load jobs');
+            }
+        }
+
+        function renderJobs(jobs) {
+            const jobsList = document.getElementById('jobsList');
+            jobsList.innerHTML = jobs.map((job, index) => `
+                <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-6 hover:border-neutral-700 transition">
+                    <!-- Job Header -->
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-semibold">${escapeHtml(job.title)}</h3>
+                            <p class="text-neutral-400">${escapeHtml(job.company_name || 'Unknown')}</p>
+                            <p class="text-sm text-neutral-500">${escapeHtml(job.location)}</p>
+                        </div>
+                        <div class="text-right">
+                            <a href="${job.job_link}" target="_blank" class="text-blue-500 hover:text-blue-400 text-sm underline">View Job →</a>
+                        </div>
+                    </div>
+
+                    <!-- Scores -->
+                    <div class="grid grid-cols-3 gap-3 mb-4 bg-neutral-800 rounded p-4">
+                        <div class="text-center">
+                            <p class="text-neutral-400 text-xs uppercase">CV Fit</p>
+                            <p class="text-2xl font-bold text-blue-500">${job.cv_fit}</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-neutral-400 text-xs uppercase">Job Quality</p>
+                            <p class="text-2xl font-bold text-purple-500">${job.job_quality}</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-neutral-400 text-xs uppercase">Overall Score</p>
+                            <p class="text-2xl font-bold text-yellow-500">${job.overall}</p>
+                        </div>
+                    </div>
+
+                    <!-- Summary -->
+                    <p class="text-neutral-300 mb-4 italic">"${escapeHtml(job.summary)}"</p>
+
+                    <!-- Description -->
+                    <div class="bg-neutral-800 rounded p-4 mb-4 max-h-32 overflow-y-auto">
+                        <p class="text-sm text-neutral-400">${escapeHtml(job.description.substring(0, 300))}...</p>
+                    </div>
+
+                    <!-- Rating Buttons -->
+                    <div class="flex gap-3">
+                        <button onclick="rateJob('${job.job_id}', true, ${index})" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition">
+                            ❤️ Like
+                        </button>
+                        <button onclick="rateJob('${job.job_id}', false, ${index})" class="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition">
+                            👎 Dislike
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function rateJob(jobId, liked, index) {
+            try {
+                const response = await fetch(`/api/jobs/${jobId}/rate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ liked: liked })
+                });
+
+                if (!response.ok) {
+                    showToast('Failed to rate job');
+                    return;
+                }
+
+                // Update counters
+                if (liked) {
+                    totalLiked++;
+                    document.getElementById('totalLiked').textContent = totalLiked;
+                } else {
+                    totalDisliked++;
+                    document.getElementById('totalDisliked').textContent = totalDisliked;
+                }
+
+                showToast(`Job marked as ${liked ? '❤️ liked' : '👎 disliked'}`);
+
+                // Reload to show next unrated job
+                await new Promise(r => setTimeout(r, 500));
+                loadJobs();
+            } catch (error) {
+                console.error('Error rating job:', error);
+                showToast('Failed to rate job');
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        async function reanalyzeJobs() {
+            try {
+                const response = await fetch(`/api/users/${userId}/analyze-jobs`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showToast(data.detail || 'Failed to start analysis');
+                    return;
+                }
+
+                showToast('Job analysis started! Refreshing in 2 seconds...');
+                await new Promise(r => setTimeout(r, 2000));
+                loadJobs();
+            } catch (error) {
+                console.error('Error starting analysis:', error);
+                showToast('Failed to start analysis');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

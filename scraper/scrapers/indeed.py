@@ -1,6 +1,6 @@
 from playwright.sync_api import sync_playwright
 
-from job import Job, JobScraper
+from ..job import Job, JobScraper
 
 
 BASE_URL = "https://il.indeed.com"
@@ -26,23 +26,34 @@ class IndeedScraper(JobScraper):
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=False)  # headless=False avoids most blocks
             page = browser.new_page()
-            
+
             page.goto(url)
             page.wait_for_timeout(2000)
-            
-            title = page.query_selector('[data-testid="jobsearch-JobInfoHeader-title"]').inner_text()
-            
+
+            # Extract title
+            title_elm = page.query_selector('[data-testid="jobsearch-JobInfoHeader-title"]')
+            title = title_elm.inner_text() if title_elm else "Unknown"
+
+            # Extract company
             company_elm = page.query_selector('[data-testid="inlineHeader-companyName"]')
-            company_name = company_elm.inner_text()
-            company_link = company_elm.query_selector("a").get_attribute("href")
-            
-            location = page.query_selector('[data-testid="jobsearch-JobInfoHeader-companyLocation"]').inner_text()
-            
-            description = page.query_selector('div[id="jobDescriptionText"]').inner_text()
-                        
+            company_name = company_elm.inner_text() if company_elm else "Unknown"
+            company_link = None
+            if company_elm:
+                link_elm = company_elm.query_selector("a")
+                company_link = link_elm.get_attribute("href") if link_elm else None
+
+            # Extract location
+            location_elm = page.query_selector('[data-testid="jobsearch-JobInfoHeader-companyLocation"]')
+            location = location_elm.inner_text() if location_elm else "Unknown"
+
+            # Extract description
+            desc_elm = page.query_selector('div[id="jobDescriptionText"]')
+            description = desc_elm.inner_text() if desc_elm else "No description available"
+
             browser.close()
-            
+
             return Job(title=title,
+                       job_link=url,
                        company_name=company_name,
                        company_link=company_link,
                        location=location,

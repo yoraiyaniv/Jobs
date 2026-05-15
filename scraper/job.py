@@ -8,6 +8,7 @@ class Job:
     title: str
     location: str
     description: str
+    job_link: str
     company_name: Optional[str]
     company_link: Optional[str]
 

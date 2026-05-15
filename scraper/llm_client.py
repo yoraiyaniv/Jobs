@@ -2,21 +2,27 @@ from google import genai
 from google.genai import types
 import os
 import json
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from secrets_manager import get_gemini_api_key
-from job import Job, JobScore
-from prompts import CV_TO_JOBS_PROMPT, JOB_SCORE_PROMPT
+from .job import Job, JobScore
+from .prompts import CV_TO_JOBS_PROMPT, JOB_SCORE_PROMPT
 
 
 class LLM_client:
     def __init__(self, file_path: str):
         self.client = genai.Client(api_key=get_gemini_api_key())
+        self.model = "gemini-2.5-flash-lite"
         
         if os.path.exists(file_path):
             file = self.client.files.upload(file=file_path)
             self.cv_file = file
         else:
-            raise FileNotFoundError("File dose'nt exist.")    
+            raise FileNotFoundError(f"File doesn't exist. path: {file_path}")    
         
     def cv_to_job_titles(self) -> list[str]: 
         request_contents = [
@@ -24,11 +30,14 @@ class LLM_client:
             CV_TO_JOBS_PROMPT
         ]
         
-        response = self.client.models.generate_content(
-            model = "gemini-2.5-flash",
-            contents=request_contents,
-            config=types.GenerateContentConfig(response_mime_type="application/json")
-            )
+        for i in range(3):
+            response = self.client.models.generate_content(
+                model = self.model,
+                contents=request_contents,
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+                )
+            if response.text:
+                break
         
         titles = json.loads(response.text)["titles"]
         
@@ -46,17 +55,17 @@ class LLM_client:
         ]
         
         response = self.client.models.generate_content(
-            model = "gemini-2.5-flash",
+            model = self.model,
             contents=request_contents,
             config=types.GenerateContentConfig(response_mime_type="application/json")
             )
-        
-        data = json.loads(response)
-        
+
+        data = json.loads(response.text)
+
         return JobScore(
             job=job,
             cv_fit=data["cv_fit"],
             job_quality=data["job_quality"],
-            overall=job["overall"],
+            overall=data["overall"],
             summary=data["summary"]
         )
