@@ -9,7 +9,7 @@ load_dotenv()
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from .llm_client import LLM_client
+from .llm_client import LLMClient
 from .job import JobScore, Job, JobScraper
 from .scrapers.indeed import IndeedScraper
 from app.models import User
@@ -34,7 +34,7 @@ def generate_titles_and_save(user: User) -> list[str]:
         # Construct full path to CV file
         cv_file_path = os.path.join(UPLOAD_DIR, user.cv_path)
         print(f"Generating titles for user {user.id}...")
-        client = LLM_client(file_path=cv_file_path)
+        client = LLMClient(file_path=cv_file_path)
         job_titles = client.cv_to_job_titles()
 
         print(f"Generated titles: {job_titles}")
@@ -84,7 +84,7 @@ def analyze_jobs_and_save(user: User) -> list[JobScore]:
         jobs: list[Job] = []
         # Construct full path to CV file
         cv_file_path = os.path.join(UPLOAD_DIR, user.cv_path)
-        client = LLM_client(file_path=cv_file_path)
+        client = LLMClient(file_path=cv_file_path)
         scraper = IndeedScraper()
 
         # Scrape jobs for each title
